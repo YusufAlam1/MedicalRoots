@@ -91,3 +91,13 @@ def tokenize(term: str) -> List[Token]:
             tokens.append(Token(part=s[i], status="unknown"))
             i += 1
     return tokens
+
+
+@app.get("/analyze", response_model=AnalyzeReponse)
+def analyze(term: str):
+    if not term.strip():
+        raise HTTPException(status_code=400, detail="empty term")
+    tokens = tokenize(term)
+    return AnalyzeResponse(
+        term=term, normalized=normalize(term), tokens=tokens, valid_structure=True
+    )
