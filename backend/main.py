@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Literal, Dict, Tuple
+import re
 
 app = FastAPI(title="Medical Terminology Analyzer")
 
@@ -35,6 +36,7 @@ VOCAB: Dict[str, Dict[str, str]] = {
     },
 }
 
+
 # token schema
 class Token(BaseModel):
     part: str
@@ -42,11 +44,50 @@ class Token(BaseModel):
     type: Literal["prefix", "root", "suffix"] | None = None
     meaning: str | None = None
     image_url: str | None = None
-    
+
+
 # analyze reponse schema
 class AnalyzeResponse(BaseModel):
     term: str
     normalized: str
     tokens: List[Token]
     valid_structure: bool
-    
+
+
+# helper functions
+def normalize(term: str) -> str:
+    term = term.lower()
+    term = re.sub(r"[^a-z ]", "", term)
+    return term
+
+
+def tokenize(term: str) -> List[Token]:
+    s = normalize(term)
+    tokens = []
+    i = 0
+    max_len = max(len(k) for k in VOCAB.keys())
+
+    while i < len(s):
+        best = None
+        for j in range(min(len(s), i + max_len), i, -1):
+            piece = s[i:j]
+            if piece in VOCAB:
+                best = piece
+                break
+        if best:
+            meta = VOCAB[best]
+            tokens.append(
+                Token(
+                    part=best,
+                    status="ok",
+                    type=meta["type"],
+                    meaning=meta["meaning"],
+                    image_url=meta["image_url"],
+                )
+            )
+            i += len(best)
+        else:
+            # could possible implement a gemini fallback
+            tokens.append(Token(part=s[i], status="unknown"))
+            i += 1
+    return tokens
